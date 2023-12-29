@@ -10,26 +10,18 @@ WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Space shooter 420803")
 
 # spaceships
-RED_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_red.png")),
-                                        (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
-YELLOW_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_yellow.png")),
-                                           (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
-GREEN_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_green.png")),
-                                          (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
+RED_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_red.png")), (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
+YELLOW_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_yellow.png")), (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
+GREEN_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_green.png")), (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
 
-BLUE_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_blue.png")),
-                                         (int(WIDTH * 0.2), int(HEIGHT * 0.2)))
+BLUE_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_blue.png")), (int(WIDTH * 0.2), int(HEIGHT * 0.2)))
 
 # lasers
-RED_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_red.png")),
-                                   (int(WIDTH * 0.1), int(HEIGHT * 0.1)))
-YELLOW_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_yellow.png")),
-                                      (int(WIDTH * 0.1), int(HEIGHT * 0.1)))
-GREEN_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_green.png")),
-                                     (int(WIDTH * 0.1), int(HEIGHT * 0.1)))
+RED_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_red.png")), (int(WIDTH * 0.1), int(HEIGHT * 0.1)))
+YELLOW_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_yellow.png")), (int(WIDTH * 0.1), int(HEIGHT * 0.1)))
+GREEN_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_green.png")), (int(WIDTH * 0.1), int(HEIGHT * 0.1)))
 
-BLUE_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_blue.png")),
-                                    (int(WIDTH * 0.12), int(HEIGHT * 0.12)))
+BLUE_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_blue.png")), (int(WIDTH * 0.12), int(HEIGHT * 0.12)))
 
 # background
 BG = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "space_background.png")), (WIDTH, HEIGHT))
@@ -48,13 +40,17 @@ class Laser:
         self.y += vel
 
     def off_screen(self, height):
-        return not (height >= self.y >= 0)
+        return not (self.y <= height)
 
     def collision(self, obj):
-        return collide(self, obj)
+        if isinstance(obj, Ship):
+            offset_x = obj.x - self.x
+            offset_y = obj.y - self.y
+            return self.mask.overlap(obj.mask, (offset_x, offset_y)) is not None
+        return False
 
 class Ship:
-    COOLDOWN = 30
+    COOLDOWN = 25  # ile ms miedzy kolejnymi strzałami
 
     def __init__(self, x, y, health=100):
         self.x = x
@@ -105,8 +101,10 @@ class Player(Ship):
         self.laser_img = BLUE_LASER
         self.mask = pygame.mask.from_surface(self.ship_img)
         self.max_health = health
+        self.score = 0
 
     def move_lasers(self, vel, objs):
+        global score
         self.cooldown()
         for laser in self.lasers:
             laser.move(vel)
@@ -114,11 +112,12 @@ class Player(Ship):
                 self.lasers.remove(laser)
             else:
                 for obj in objs:
-                    if laser.collision(obj):
+                    if isinstance(obj, Enemy) and laser.collision(obj):
                         objs.remove(obj)
-                        if laser in self.lasers:
-                            self.lasers.remove(laser)
-                            self.health -= 10
+                        self.lasers.remove(laser)
+                        score += 2
+                    elif laser.collision(obj) and isinstance(obj, Enemy):
+                        self.lasers.remove(laser)
 
     def draw(self, window):
         super().draw(window)
@@ -126,10 +125,10 @@ class Player(Ship):
 
     def healthbar(self, window):
         pygame.draw.rect(window, (255, 0, 0),
-                         (self.x, self.y + self.ship_img.get_height() + 10, self.ship_img.get_width(), 10))
+                         (self.x, self.y + self.ship_img.get_height() - 10, self.ship_img.get_width(), 7))
         pygame.draw.rect(window, (0, 255, 0),
-                         (self.x, self.y + self.ship_img.get_height() + 10,
-                          self.ship_img.get_width() * (self.health / self.max_health), 10))
+                         (self.x, self.y + self.ship_img.get_height() - 10,
+                          self.ship_img.get_width() * (self.health / self.max_health), 7))
 
 class Enemy(Ship):
     COLOR_MAP = {
@@ -152,16 +151,25 @@ class Enemy(Ship):
             self.lasers.append(laser)
             self.cool_down_counter = 1
 
+    def collision(self, obj):
+        if isinstance(obj, Player):
+            offset_x = obj.x - self.x
+            offset_y = obj.y - self.y
+            return self.mask.overlap(obj.mask, (offset_x, offset_y)) is not None
+        return False
+
 def collide(obj1, obj2):
     offset_x = obj2.x - obj1.x
     offset_y = obj2.y - obj1.y  # Poprawiony błąd: Poprawiono obliczenia offsetu Y.
     return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) is not None
 
 def main():
+    global score
     run = True
-    FPS = 60 # sprawdzamy kolizje, polozenie itp. (60 na sekunde)
+    FPS = 60
     level = 0
-    lives = 5
+    lives = 3
+    score = 0
     main_font = pygame.font.SysFont("comicsans", 30)
     lost_font = pygame.font.SysFont("comicsans", 40)
 
@@ -179,28 +187,32 @@ def main():
     lost = False
     lost_count = 0
 
+    def end_game_screen():
+        WIN.blit(BG, (0, 0))
+        end_label = lost_font.render(f"You lost. Your score: {score}", 1, (255, 255, 255))
+        WIN.blit(end_label, (WIDTH / 2 - end_label.get_width() / 2, 350))
+        pygame.display.update()
+        pygame.time.delay(3000)
+    
     def redraw_window():
-        WIN.blit(BG, (0,0)) #BG wrzucony na koordynaty 0,0 (lewy gorny rog)
-        #text
+        WIN.blit(BG, (0, 0))
         lives_label = main_font.render(f"Lives: {lives}", 1, (255, 255, 255))
         level_label = main_font.render(f"Level: {level}", 1, (255, 255, 255))
+        score_label = main_font.render(f"Score: {score}", 1, (255, 255, 255))
 
         WIN.blit(lives_label, (10, 10))
         WIN.blit(level_label, (WIDTH - level_label.get_width() - 10, 10))
+        WIN.blit(score_label, (WIDTH / 2 - score_label.get_width() / 2, 10))
 
         for enemy in enemies:
             enemy.draw(WIN)
 
         player.draw(WIN)
 
-        if lost:
-            lost_label = lost_font.render("You lost...", 1, (255, 255, 255))
-            WIN.blit(lost_label, (WIDTH/2 - lost_label.get_width()/2, 350))
-
-        pygame.display.update() #odswiezanie ekranu, zeby byla widoczna najnowsza wersaj wydarzen
+        pygame.display.update()
 
     while run:
-        clock.tick(FPS) # czas w zaleznosci od klatek
+        clock.tick(FPS)
         redraw_window()
 
         if lives <= 0 or player.health <= 0:
@@ -209,6 +221,7 @@ def main():
 
         if lost:
             if lost_count > FPS * 3:
+                end_game_screen()
                 run = False
             else:
                 continue
@@ -221,10 +234,10 @@ def main():
                 enemies.append(enemy)
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: #konczymy gre/ petle jezeli ktos zamnkie okno
-                quit()
+            if event.type == pygame.QUIT:
+                run = False
 
-        keys = pygame.key.get_pressed() #zwroci slownik klawiszy i powie czy sa wcisniete czy nie
+        keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT] and player.x - player_vel > 0:
             player.x -= player_vel
         if keys[pygame.K_RIGHT] and player.x + player_vel + player.get_width() < WIDTH:
@@ -240,7 +253,7 @@ def main():
             enemy.move(enemy_vel)
             enemy.move_lasers(laser_vel, player)
 
-            if random.randrange(0, 120) == 1:
+            if random.randrange(0, 100) == 1 and enemy.y > 0:
                 enemy.shoot()
 
             if collide(enemy, player):
@@ -253,18 +266,19 @@ def main():
         player.move_lasers(-laser_vel, enemies)
 
 def main_menu():
-    title_font = pygame.font.SysFont("comicsans", 70)
+    title_font = pygame.font.SysFont("comicsans", 40)
     run = True
     while run:
         WIN.blit(BG, (0,0))
-        title_label = title_font.render("Press the mouse to begin...", 1, (255,255,255))
-        WIN.blit(title_label, (WIDTH/2 - title_label.get_width()/2, 350))
+        title_label = title_font.render("Press any key to begin", 1, (255,255,255))
+        WIN.blit(title_label, (WIDTH/2 - title_label.get_width()/2, 300))
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.KEYDOWN:
                 main()
     pygame.quit()
 
+main_menu()
 main()
