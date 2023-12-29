@@ -166,6 +166,7 @@ def collide(obj1, obj2):
 def main():
     global score
     run = True
+    pygame.font.init()
     FPS = 60
     level = 0
     lives = 3
@@ -196,6 +197,7 @@ def main():
     
     def redraw_window():
         WIN.blit(BG, (0, 0))
+
         lives_label = main_font.render(f"Lives: {lives}", 1, (255, 255, 255))
         level_label = main_font.render(f"Level: {level}", 1, (255, 255, 255))
         score_label = main_font.render(f"Score: {score}", 1, (255, 255, 255))
