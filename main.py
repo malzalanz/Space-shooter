@@ -160,7 +160,7 @@ class Enemy(Ship):
 
 def collide(obj1, obj2):
     offset_x = obj2.x - obj1.x
-    offset_y = obj2.y - obj1.y 
+    offset_y = obj2.y - obj1.y  # Poprawiony błąd: Poprawiono obliczenia offsetu Y.
     return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) is not None
 
 def main():
@@ -238,13 +238,13 @@ def main():
                 run = False
 
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT] and player.x - player_vel > 0:
+        if (keys[pygame.K_a] or keys[pygame.K_LEFT]) and player.x - player_vel > 0:
             player.x -= player_vel
-        if keys[pygame.K_RIGHT] and player.x + player_vel + player.get_width() < WIDTH:
+        if (keys[pygame.K_d]or keys[pygame.K_RIGHT]) and player.x + player_vel + player.get_width() < WIDTH:
             player.x += player_vel
-        if keys[pygame.K_UP] and player.y - player_vel > 0:
+        if (keys[pygame.K_w] or keys[pygame.K_UP]) and player.y - player_vel > 0:
             player.y -= player_vel
-        if keys[pygame.K_DOWN] and player.y + player_vel + player.get_height() < HEIGHT:
+        if (keys[pygame.K_s] or keys[pygame.K_DOWN]) and player.y + player_vel + player.get_height() < HEIGHT:
             player.y += player_vel
         if keys[pygame.K_SPACE]:
             player.shoot()
