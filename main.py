@@ -160,7 +160,7 @@ class Enemy(Ship):
 
 def collide(obj1, obj2):
     offset_x = obj2.x - obj1.x
-    offset_y = obj2.y - obj1.y  # Poprawiony błąd: Poprawiono obliczenia offsetu Y.
+    offset_y = obj2.y - obj1.y
     return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) is not None
 
 def main():
@@ -231,6 +231,7 @@ def main():
         if len(enemies) == 0:
             level += 1
             wave_length += 5
+            enemy_vel += 0.2
             for i in range(wave_length):
                 enemy = Enemy(random.randrange(100, WIDTH - 100), random.randrange(-1500, -100), random.choice(["red", "green", "yellow"]))
                 enemies.append(enemy)
