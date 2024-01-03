@@ -194,6 +194,7 @@ def main():
         WIN.blit(end_label, (WIDTH / 2 - end_label.get_width() / 2, 350))
         pygame.display.update()
         pygame.time.delay(3000)
+        run = False
     
     def redraw_window():
         WIN.blit(BG, (0, 0))
@@ -284,4 +285,4 @@ def main_menu():
     pygame.quit()
 
 main_menu()
-main()
+main() 
