@@ -2,6 +2,7 @@ import pygame
 import os
 import time
 import random
+import pickle
 
 pygame.font.init()
 
@@ -163,6 +164,30 @@ def collide(obj1, obj2):
     offset_y = obj2.y - obj1.y
     return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) is not None
 
+def save_score(score):
+    try:
+        with open("highscores.txt", 'rb') as file:
+            highscores = pickle.load(file)
+    except (FileNotFoundError, EOFError):
+        highscores = []
+
+    highscores.append(score)
+    highscores.sort(reverse = True)
+
+    with open("highscores.txt", "wb") as file:
+        pickle.dump(highscores[:5], file)
+
+def display_highscores():
+    try:
+        with open("highscores.txt", "rb") as file:
+            highscores = pickle.load(file)
+    except (FileNotFoundError, EOFError):
+        highscores = []
+
+    print("Top 5 Highscores: ")
+    for i, score in enumerate(highscores[:5], start = 1):
+        print(f"{i}. {score}")
+
 def main():
     global score
     run = True
@@ -195,6 +220,8 @@ def main():
         pygame.display.update()
         pygame.time.delay(3000)
         run = False
+        save_score(score)
+        display_highscores()
     
     def redraw_window():
         WIN.blit(BG, (0, 0))
