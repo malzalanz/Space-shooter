@@ -1,8 +1,9 @@
-import pygame
 import os
+import pygame
 import time
 import random
 import pickle
+import sys
 
 # inicjalizacja modułu pygame
 pygame.font.init()
@@ -12,7 +13,7 @@ WIDTH, HEIGHT = 750, 750
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Space shooter 420803")
 
-# grafiki statkó kosmicznych
+# grafiki statków kosmicznych
 RED_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_red.png")), (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
 YELLOW_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_yellow.png")), (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
 GREEN_SPACE_SHIP = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "ship_green.png")), (int(WIDTH * 0.15), int(HEIGHT * 0.15)))
@@ -27,7 +28,27 @@ GREEN_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "
 BLUE_LASER = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "laser_blue.png")), (int(WIDTH * 0.12), int(HEIGHT * 0.12)))
 
 # tło gry
-BG = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "space_background.png")), (WIDTH, HEIGHT))
+try:
+    BG = pygame.transform.scale(pygame.image.load(os.path.join("grafika", "space_background.png")), (WIDTH, HEIGHT))
+except pygame.error as e:
+    print(f"Error loading background image: {e}")
+    pygame.quit()
+    sys.exit()
+
+# funkcja dekorująca, obliczajaca czas wykonywania się danej funkcji (uzywamy jej na main -> czas gry w sekundach)
+def timing_decorator(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        try:
+            results = func(*args, **kwargs)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            results = None
+        end_time = time.time()
+        execution_time = end_time - start_time
+        return results, execution_time
+
+    return wrapper
 
 # klasa reprezentująca laser
 class Laser:
@@ -53,10 +74,10 @@ class Laser:
             offset_y = obj.y - self.y
             return self.mask.overlap(obj.mask, (offset_x, offset_y)) is not None
         return False
-
+        
 # klasa reprezentująca statek kosmiczny
 class Ship:
-    COOLDOWN = 25  # ile ms miedzy kolejnymi strzałami
+    COOLDOWN = 15  # ile ms miedzy kolejnymi strzałami
 
     def __init__(self, x, y, health=100):
         self.x = x
@@ -104,7 +125,7 @@ class Ship:
     def get_height(self):
         return self.ship_img.get_height()
 
-# kalsa reprezentująca gracza
+# klasa reprezentująca gracza
 class Player(Ship):
     def __init__(self, x, y, health=100):
         super().__init__(x, y, health)
@@ -113,23 +134,44 @@ class Player(Ship):
         self.mask = pygame.mask.from_surface(self.ship_img)
         self.max_health = health
         self.score = 0
+        self.nickname = ""
+
+        self.nickname_font = pygame.font.SysFont("helvetica", 30)
+        self.nickname_input = ""
+        self.nickname_set = False
 
     def move_lasers(self, vel, objs):
         global score
         self.cooldown()
-        for laser in self.lasers:
+        laser_to_remove = []
+
+        for laser in self.lasers[:]: #iteruj przez kopie listy
             laser.move(vel)
             if laser.off_screen(HEIGHT):
-                #usuń lasery, które opuścił obszar ekranu
-                self.lasers.remove(laser)
+                #dodaj laser do listy do usuniecia jesli opusci ekran
+                laser_to_remove.append(laser)
             else:
                 for obj in objs:
                     if isinstance(obj, Enemy) and laser.collision(obj):
                         objs.remove(obj)
-                        self.lasers.remove(laser)
+                        laser_to_remove.append(laser)
                         score += 2
                     elif laser.collision(obj) and isinstance(obj, Enemy):
                         self.lasers.remove(laser)
+
+        for laser in laser_to_remove:
+            self.lasers.remove(laser)
+
+    def set_nickname(self):
+        if not self.nickname:
+            self.nickname = input("Enter your nickname: ")
+            self.nickname_set = True
+
+    def __len__(self):
+        return len(self.nickname) if self.nickname_set else 0
+    
+    def __str__(self):
+        return self.nickname if self.nickname_set else "No nickname"
 
     def draw(self, window):
         #rysuj gracza oraz pasek zdrowia
@@ -158,6 +200,11 @@ class Enemy(Ship):
         self.ship_img, self.laser_img = self.COLOR_MAP[color]
         self.mask = pygame.mask.from_surface(self.ship_img)
 
+    def __del__(self):
+        #dzialania wykonywane przy usuwaniu obiektu
+        if game_state == "running":
+            print(f"Enemy ship at ({self.x}, {self.y}) was destroyed.")
+
     def move(self, vel):
         self.y += vel
 
@@ -183,7 +230,7 @@ def collide(obj1, obj2):
     return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) is not None
 
 # funkcja zapisująca wynik gracza do pliku
-def save_score(score):
+def save_score(nickname, score):
     try:
         #spróbuj otworzyć plik z wynikami
         with open("highscores.txt", 'rb') as file:
@@ -193,15 +240,15 @@ def save_score(score):
         highscores = []
 
     #dodaj nowy wynik do listy i posortuj malejąco
-    highscores.append(score)
-    highscores.sort(reverse = True)
+    highscores.append((nickname, score))
+    highscores.sort(key=lambda x: x[1], reverse = True)
 
     #zapisz tylko 5 najlepszych wyników
     with open("highscores.txt", "wb") as file:
         pickle.dump(highscores[:5], file)
 
 # funkcja wyświetlająca najlepsze wyniki
-def display_highscores():
+def display_highscores(nickname):
     try:
         with open("highscores.txt", "rb") as file:
             highscores = pickle.load(file)
@@ -209,20 +256,25 @@ def display_highscores():
         highscores = []
 
     print("Top 5 Highscores: ")
-    for i, score in enumerate(highscores[:5], start = 1):
-        print(f"{i}. {score}")
+    for i, (name, score) in enumerate(highscores[:5], start = 1):
+        if name == nickname:
+            print(f"{i}. {name}: {score} (Your Score)")
+        else:
+            print(f"{i}. {name}: {score}")
 
-# głóna funkcja gry
+game_state = "running"
+# głóna funkcja gry z dekoratorem
+@timing_decorator
 def main():
-    global score
+    global score, game_state
     run = True
     pygame.font.init()
     FPS = 60
     level = 0
     lives = 3
     score = 0
-    main_font = pygame.font.SysFont("comicsans", 30)
-    lost_font = pygame.font.SysFont("comicsans", 40)
+    main_font = pygame.font.SysFont("helvetica", 30)
+    lost_font = pygame.font.SysFont("helvetica", 40)
 
     #lista przeciwników
     enemies = []
@@ -242,16 +294,26 @@ def main():
     lost_count = 0
 
     # funkcja ekranu końcowego
-    def end_game_screen():
+    def end_game_screen(player):
+        global game_state
         WIN.blit(BG, (0, 0))
         end_label = lost_font.render(f"You lost. Your score: {score}", 1, (255, 255, 255))
         WIN.blit(end_label, (WIDTH / 2 - end_label.get_width() / 2, 350))
+
         pygame.display.update()
         pygame.time.delay(3000)
+        
+        player.set_nickname()
+        save_score(player.nickname, score)
+        #uzycie metody str i len do wyswietlenia pseudonimu gracza i jego dlugosci
+        pseudonym = str(player)
+        length_of_nickname = len(player)
+        print(f"\nNickname: {pseudonym}")
+        print(f"Length of nickname: {length_of_nickname}")
+
         global run
         run = False
-        save_score(score)
-        display_highscores()
+        game_state = "ended"
     
     # funkcja do odświeżania okna gry
     def redraw_window():
@@ -266,7 +328,7 @@ def main():
         WIN.blit(level_label, (WIDTH - level_label.get_width() - 10, 10))
         WIN.blit(score_label, (WIDTH / 2 - score_label.get_width() / 2, 10))
 
-        #rysowanie przeciwnikó na ekranie
+        #rysowanie przeciwników na ekranie
         for enemy in enemies:
             enemy.draw(WIN)
 
@@ -287,11 +349,16 @@ def main():
         #obsługa ekranu po przegranej
         if lost:
             if lost_count > FPS * 3:
-                end_game_screen()
-                run = False
+                player.set_nickname()
+                save_score(player.nickname, score)
+                display_highscores(player.nickname)
+                end_game_screen(player)
             else:
                 continue
         
+        if game_state == "ended":
+            break
+
         #dodanie nowej fali przeciwników (kolejny poziom) po zniszczeniu poprzedniej
         if len(enemies) == 0:
             level += 1
@@ -300,6 +367,9 @@ def main():
             for i in range(wave_length):
                 enemy = Enemy(random.randrange(100, WIDTH - 100), random.randrange(-1500, -100), random.choice(["red", "green", "yellow"]))
                 enemies.append(enemy)
+
+        player.level_up_timer = FPS
+        player.level_up_message = f"Level {level}"
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -324,7 +394,7 @@ def main():
             enemy.move_lasers(laser_vel, player)
 
             #losowe strzelanie przeciwników
-            if random.randrange(0, 100) == 1 and enemy.y > 0:
+            if random.randrange(0, 150) == 1 and enemy.y > 0:
                 enemy.shoot()
 
             #kolizje i reakcje na kolizje
@@ -338,12 +408,19 @@ def main():
         #ruch i znikanie laserów gracza po opuszczeniu ekranu   
         player.move_lasers(-laser_vel, enemies)
 
+# uruchomienie gry i otrzymanie wyniku oraz czasu trwania
+result, play_time = main()
+#wyswietlanie czasu trwania rozgrywki
+print(f"Player played for: {play_time:.2f} seconds.")
+
 def main_menu():
-    title_font = pygame.font.SysFont("comicsans", 40)
+    title_font = pygame.font.SysFont("helvetica", 50)
     run = True
     
     #główna pętla menu
     while run:
+        global game_state
+        game_state = "running"
         WIN.blit(BG, (0,0))
         title_label = title_font.render("Press any key to begin", 1, (255,255,255))
         WIN.blit(title_label, (WIDTH/2 - title_label.get_width()/2, 300))
@@ -355,7 +432,10 @@ def main_menu():
                 run = False
             if event.type == pygame.KEYDOWN:
                 main()
+
+    print(f"Player played for: {play_time:.2f} seconds")
+
     pygame.quit()
+    main()
 
 main_menu()
-main() 
