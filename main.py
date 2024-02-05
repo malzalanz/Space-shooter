@@ -167,9 +167,11 @@ class Player(Ship):
             self.nickname = input("Enter your nickname: ")
             self.nickname_set = True
 
+    #zwracanie długości obiektu
     def __len__(self):
         return len(self.nickname) if self.nickname_set else 0
     
+    #zwracanie reprezentacji tekstowej obiektu
     def __str__(self):
         return self.nickname if self.nickname_set else "No nickname"
 
